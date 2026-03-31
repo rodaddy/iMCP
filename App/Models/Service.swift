@@ -26,10 +26,6 @@ extension Service {
 
 @resultBuilder
 struct ToolBuilder {
-    static func buildBlock(_ tools: Tool...) -> [Tool] {
-        tools
-    }
-
     static func buildBlock(_ components: [Tool]...) -> [Tool] {
         components.flatMap { $0 }
     }
