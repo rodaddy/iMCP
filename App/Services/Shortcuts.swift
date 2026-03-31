@@ -60,6 +60,64 @@ final class ShortcutsService: Service {
 
             return try await self.runShortcut(name: name, input: input)
         }
+
+        Tool(
+            name: "shortcuts_get_details",
+            description: "View the actions and details of a shortcut",
+            inputSchema: .object(
+                properties: [
+                    "name": .string(
+                        description: "The name of the shortcut to inspect"
+                    ),
+                ],
+                required: ["name"],
+                additionalProperties: false
+            ),
+            annotations: .init(
+                title: "Get Shortcut Details",
+                readOnlyHint: true,
+                openWorldHint: false
+            )
+        ) { arguments in
+            guard case let .string(name) = arguments["name"] else {
+                throw NSError(
+                    domain: "ShortcutsError",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Shortcut name is required"]
+                )
+            }
+
+            return try await self.viewShortcut(name: name)
+        }
+
+        Tool(
+            name: "shortcuts_delete",
+            description: "Delete a shortcut by name",
+            inputSchema: .object(
+                properties: [
+                    "name": .string(
+                        description: "The name of the shortcut to delete"
+                    ),
+                ],
+                required: ["name"],
+                additionalProperties: false
+            ),
+            annotations: .init(
+                title: "Delete Shortcut",
+                destructiveHint: true,
+                openWorldHint: false
+            )
+        ) { arguments in
+            guard case let .string(name) = arguments["name"] else {
+                throw NSError(
+                    domain: "ShortcutsError",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Shortcut name is required"]
+                )
+            }
+
+            return try await self.deleteShortcut(name: name)
+        }
     }
 
     // MARK: - Private Implementation
@@ -231,6 +289,88 @@ final class ShortcutsService: Service {
         return .object([
             "success": .bool(true),
             "shortcut": .string(name),
+        ])
+    }
+
+    private func viewShortcut(name: String) async throws -> Value {
+        log.info("Viewing shortcut: \(name, privacy: .public)")
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: shortcutsPath)
+        process.arguments = ["view", name]
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+
+        let outputHandle = outputPipe.fileHandleForReading
+        let errorHandle = errorPipe.fileHandleForReading
+        defer {
+            outputHandle.closeFile()
+            errorHandle.closeFile()
+        }
+
+        try await runProcess(process)
+
+        let outputData = (try? outputHandle.readToEnd()) ?? Data()
+        let errorData = (try? errorHandle.readToEnd()) ?? Data()
+
+        guard process.terminationStatus == 0 else {
+            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            log.error("shortcuts view failed: \(errorMessage)")
+            throw NSError(
+                domain: "ShortcutsError",
+                code: 7,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to view shortcut '\(name)': \(errorMessage)"
+                ]
+            )
+        }
+
+        let output = String(data: outputData, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        return .object([
+            "shortcut": .string(name),
+            "details": .string(output),
+        ])
+    }
+
+    private func deleteShortcut(name: String) async throws -> Value {
+        log.info("Deleting shortcut: \(name, privacy: .public)")
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: shortcutsPath)
+        process.arguments = ["delete", name]
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        let errorHandle = errorPipe.fileHandleForReading
+        defer { errorHandle.closeFile() }
+
+        try await runProcess(process)
+
+        let errorData = (try? errorHandle.readToEnd()) ?? Data()
+
+        guard process.terminationStatus == 0 else {
+            let errorMessage = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+            log.error("shortcuts delete failed: \(errorMessage)")
+            throw NSError(
+                domain: "ShortcutsError",
+                code: 8,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to delete shortcut '\(name)': \(errorMessage)"
+                ]
+            )
+        }
+
+        return .object([
+            "success": .bool(true),
+            "deleted": .string(name),
         ])
     }
 }

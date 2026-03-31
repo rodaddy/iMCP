@@ -50,12 +50,18 @@ struct ServiceConfig: Identifiable {
 enum ServiceRegistry {
     static let services: [any Service] = {
         var services: [any Service] = [
+            AppleScriptService.shared,
             CalendarService.shared,
             CaptureService.shared,
+            ChromeService.shared,
             ContactsService.shared,
+            DesktopService.shared,
             LocationService.shared,
+            MailService.shared,
             MapsService.shared,
+            MusicService.shared,
             MessageService.shared,
+            NotesService.shared,
             RemindersService.shared,
             ShortcutsService.shared,
             UtilitiesService.shared,
@@ -67,18 +73,31 @@ enum ServiceRegistry {
     }()
 
     static func configureServices(
+        appleScriptEnabled: Binding<Bool>,
         calendarEnabled: Binding<Bool>,
         captureEnabled: Binding<Bool>,
+        chromeEnabled: Binding<Bool>,
         contactsEnabled: Binding<Bool>,
+        desktopEnabled: Binding<Bool>,
         locationEnabled: Binding<Bool>,
+        mailEnabled: Binding<Bool>,
         mapsEnabled: Binding<Bool>,
+        musicEnabled: Binding<Bool>,
         messagesEnabled: Binding<Bool>,
+        notesEnabled: Binding<Bool>,
         remindersEnabled: Binding<Bool>,
         shortcutsEnabled: Binding<Bool>,
         utilitiesEnabled: Binding<Bool>,
         weatherEnabled: Binding<Bool>
     ) -> [ServiceConfig] {
         var configs: [ServiceConfig] = [
+            ServiceConfig(
+                name: "AppleScript",
+                iconName: "applescript.fill",
+                color: .gray,
+                service: AppleScriptService.shared,
+                binding: appleScriptEnabled
+            ),
             ServiceConfig(
                 name: "Calendar",
                 iconName: "calendar",
@@ -94,11 +113,25 @@ enum ServiceRegistry {
                 binding: captureEnabled
             ),
             ServiceConfig(
+                name: "Chrome",
+                iconName: "globe",
+                color: .green.mix(with: .blue, by: 0.3),
+                service: ChromeService.shared,
+                binding: chromeEnabled
+            ),
+            ServiceConfig(
                 name: "Contacts",
                 iconName: "person.crop.square.filled.and.at.rectangle.fill",
                 color: .brown,
                 service: ContactsService.shared,
                 binding: contactsEnabled
+            ),
+            ServiceConfig(
+                name: "Desktop",
+                iconName: "macwindow",
+                color: .teal,
+                service: DesktopService.shared,
+                binding: desktopEnabled
             ),
             ServiceConfig(
                 name: "Location",
@@ -108,6 +141,13 @@ enum ServiceRegistry {
                 binding: locationEnabled
             ),
             ServiceConfig(
+                name: "Mail",
+                iconName: "envelope.fill",
+                color: .blue.mix(with: .white, by: 0.3),
+                service: MailService.shared,
+                binding: mailEnabled
+            ),
+            ServiceConfig(
                 name: "Maps",
                 iconName: "mappin.and.ellipse",
                 color: .purple,
@@ -115,11 +155,25 @@ enum ServiceRegistry {
                 binding: mapsEnabled
             ),
             ServiceConfig(
+                name: "Music",
+                iconName: "music.note",
+                color: .pink,
+                service: MusicService.shared,
+                binding: musicEnabled
+            ),
+            ServiceConfig(
                 name: "Messages",
                 iconName: "message.fill",
                 color: .green,
                 service: MessageService.shared,
                 binding: messagesEnabled
+            ),
+            ServiceConfig(
+                name: "Notes",
+                iconName: "note.text",
+                color: .yellow,
+                service: NotesService.shared,
+                binding: notesEnabled
             ),
             ServiceConfig(
                 name: "Reminders",
@@ -134,6 +188,13 @@ enum ServiceRegistry {
                 color: .indigo,
                 service: ShortcutsService.shared,
                 binding: shortcutsEnabled
+            ),
+            ServiceConfig(
+                name: "Utilities",
+                iconName: "wrench.fill",
+                color: .gray.mix(with: .white, by: 0.2),
+                service: UtilitiesService.shared,
+                binding: utilitiesEnabled
             ),
         ]
         #if WEATHERKIT_AVAILABLE
@@ -165,12 +226,18 @@ final class ServerController: ObservableObject {
     private let networkManager = ServerNetworkManager()
 
     // MARK: - AppStorage for Service Enablement States
+    @AppStorage("appleScriptEnabled") private var appleScriptEnabled = false
     @AppStorage("calendarEnabled") private var calendarEnabled = false
     @AppStorage("captureEnabled") private var captureEnabled = false
+    @AppStorage("chromeEnabled") private var chromeEnabled = false
     @AppStorage("contactsEnabled") private var contactsEnabled = false
+    @AppStorage("desktopEnabled") private var desktopEnabled = false
     @AppStorage("locationEnabled") private var locationEnabled = false
+    @AppStorage("mailEnabled") private var mailEnabled = false
     @AppStorage("mapsEnabled") private var mapsEnabled = true  // Default enabled
+    @AppStorage("musicEnabled") private var musicEnabled = false
     @AppStorage("messagesEnabled") private var messagesEnabled = false
+    @AppStorage("notesEnabled") private var notesEnabled = false
     @AppStorage("remindersEnabled") private var remindersEnabled = false
     @AppStorage("shortcutsEnabled") private var shortcutsEnabled = false
     @AppStorage("utilitiesEnabled") private var utilitiesEnabled = true  // Default enabled
@@ -182,12 +249,18 @@ final class ServerController: ObservableObject {
     // MARK: - Computed Properties for Service Configurations and Bindings
     var computedServiceConfigs: [ServiceConfig] {
         ServiceRegistry.configureServices(
+            appleScriptEnabled: $appleScriptEnabled,
             calendarEnabled: $calendarEnabled,
             captureEnabled: $captureEnabled,
+            chromeEnabled: $chromeEnabled,
             contactsEnabled: $contactsEnabled,
+            desktopEnabled: $desktopEnabled,
             locationEnabled: $locationEnabled,
+            mailEnabled: $mailEnabled,
             mapsEnabled: $mapsEnabled,
+            musicEnabled: $musicEnabled,
             messagesEnabled: $messagesEnabled,
+            notesEnabled: $notesEnabled,
             remindersEnabled: $remindersEnabled,
             shortcutsEnabled: $shortcutsEnabled,
             utilitiesEnabled: $utilitiesEnabled,

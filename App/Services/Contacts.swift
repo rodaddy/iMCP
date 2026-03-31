@@ -327,5 +327,92 @@ final class ContactsService: Service {
 
             return Person(newContact)
         }
+
+        Tool(
+            name: "contacts_delete",
+            description: "Delete a contact by their identifier",
+            inputSchema: .object(
+                properties: [
+                    "identifier": .string(
+                        description:
+                            "Unique identifier of the contact to delete (from contacts_search)"
+                    ),
+                ],
+                required: ["identifier"],
+                additionalProperties: false
+            ),
+            annotations: .init(
+                title: "Delete Contact",
+                destructiveHint: true,
+                openWorldHint: false
+            )
+        ) { arguments in
+            guard case let .string(identifier) = arguments["identifier"], !identifier.isEmpty else {
+                throw NSError(
+                    domain: "ContactsService",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Valid contact identifier required"]
+                )
+            }
+
+            let predicate = CNContact.predicateForContacts(withIdentifiers: [identifier])
+            let contact = try await self.runContactStore {
+                try self.contactStore.unifiedContacts(
+                    matching: predicate,
+                    keysToFetch: [CNContactGivenNameKey, CNContactFamilyNameKey] as [CNKeyDescriptor]
+                )
+            }.first?.mutableCopy() as? CNMutableContact
+
+            guard let contactToDelete = contact else {
+                throw NSError(
+                    domain: "ContactsService",
+                    code: 2,
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            "Contact not found with identifier: \(identifier)"
+                    ]
+                )
+            }
+
+            let name = "\(contactToDelete.givenName) \(contactToDelete.familyName)".trimmingCharacters(
+                in: .whitespaces)
+
+            let saveRequest = CNSaveRequest()
+            saveRequest.delete(contactToDelete)
+
+            try await self.runContactStore {
+                try self.contactStore.execute(saveRequest)
+            }
+
+            return Value.object([
+                "success": .bool(true),
+                "deleted": .string(name.isEmpty ? identifier : name),
+            ])
+        }
+
+        Tool(
+            name: "contacts_groups_list",
+            description: "List all contact groups",
+            inputSchema: .object(
+                properties: [:],
+                additionalProperties: false
+            ),
+            annotations: .init(
+                title: "List Contact Groups",
+                readOnlyHint: true,
+                openWorldHint: false
+            )
+        ) { _ in
+            let groups = try await self.runContactStore {
+                try self.contactStore.groups(matching: nil)
+            }
+
+            return Value.array(groups.map { group in
+                Value.object([
+                    "identifier": .string(group.identifier),
+                    "name": .string(group.name),
+                ])
+            })
+        }
     }
 }

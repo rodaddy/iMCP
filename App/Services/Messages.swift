@@ -50,6 +50,55 @@ final class MessageService: NSObject, Service, NSOpenSavePanelDelegate {
 
     var tools: [Tool] {
         Tool(
+            name: "messages_chats_list",
+            description:
+                "List message conversations/threads with participants and last message date",
+            inputSchema: .object(
+                properties: [
+                    "limit": .integer(
+                        description: "Maximum conversations to return",
+                        default: .int(30)
+                    ),
+                ],
+                additionalProperties: false
+            ),
+            annotations: .init(
+                title: "List Chats",
+                readOnlyHint: true,
+                openWorldHint: false
+            )
+        ) { arguments in
+            log.debug("Fetching chat list")
+            try await self.activate()
+
+            let limit: Int
+            if case .int(let l) = arguments["limit"] {
+                limit = l
+            } else {
+                limit = 30
+            }
+
+            let db = try self.createDatabaseConnection()
+            let chats = try db.fetchChats(limit: limit)
+
+            return Value.array(chats.map { chat in
+                var chatObj: [String: Value] = [
+                    "id": .string(chat.id.rawValue),
+                    "participants": .array(
+                        chat.participants.map { .string($0.rawValue) }
+                    ),
+                ]
+                if let displayName = chat.displayName, !displayName.isEmpty {
+                    chatObj["displayName"] = .string(displayName)
+                }
+                if let lastDate = chat.lastMessageDate {
+                    chatObj["lastMessageDate"] = .string(lastDate.formatted(.iso8601))
+                }
+                return Value.object(chatObj)
+            })
+        }
+
+        Tool(
             name: "messages_fetch",
             description: "Fetch messages from the Messages app",
             inputSchema: .object(
@@ -167,6 +216,158 @@ final class MessageService: NSObject, Service, NSOpenSavePanelDelegate {
                 "@type": "Conversation",
                 "hasPart": Value.array(messages.map({ .object($0) })),
             ]
+        }
+
+        Tool(
+            name: "messages_send",
+            description:
+                "Send a message via the Messages app using AppleScript",
+            inputSchema: .object(
+                properties: [
+                    "to": .string(
+                        description:
+                            "Recipient phone number (E.164 format, e.g. +15551234567) or email address"
+                    ),
+                    "text": .string(
+                        description: "Message text to send"
+                    ),
+                    "service": .string(
+                        description: "Messaging service to use",
+                        default: .string("iMessage"),
+                        enum: [.string("iMessage"), .string("SMS")]
+                    ),
+                ],
+                required: ["to", "text"],
+                additionalProperties: false
+            ),
+            annotations: .init(
+                title: "Send Message",
+                destructiveHint: true,
+                openWorldHint: false
+            )
+        ) { arguments in
+            guard case .string(let to) = arguments["to"], !to.isEmpty else {
+                throw NSError(
+                    domain: "MessagesError",
+                    code: 10,
+                    userInfo: [NSLocalizedDescriptionKey: "Recipient is required"]
+                )
+            }
+
+            guard case .string(let text) = arguments["text"], !text.isEmpty else {
+                throw NSError(
+                    domain: "MessagesError",
+                    code: 11,
+                    userInfo: [NSLocalizedDescriptionKey: "Message text is required"]
+                )
+            }
+
+            let serviceType: String
+            if case .string(let svc) = arguments["service"], svc == "SMS" {
+                serviceType = "SMS"
+            } else {
+                serviceType = "iMessage"
+            }
+
+            let escapedTo = to.appleScriptEscaped
+            let escapedText = text.appleScriptEscaped
+
+            let script = """
+                tell application "Messages"
+                    set targetService to 1st service whose service type = \(serviceType)
+                    set targetBuddy to buddy "\(escapedTo)" of targetService
+                    send "\(escapedText)" to targetBuddy
+                end tell
+                """
+
+            log.info("Sending message to \(to, privacy: .private)")
+
+            // Use osascript subprocess for thread safety
+            let tempDir = FileManager.default.temporaryDirectory
+            let scriptFile = tempDir.appendingPathComponent(
+                "messages_send_\(UUID().uuidString).scpt"
+            )
+
+            defer {
+                try? FileManager.default.removeItem(at: scriptFile)
+            }
+
+            try script.write(to: scriptFile, atomically: true, encoding: .utf8)
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            process.arguments = [scriptFile.path]
+
+            let errorPipe = Pipe()
+            process.standardError = errorPipe
+            let errorHandle = errorPipe.fileHandleForReading
+            defer { errorHandle.closeFile() }
+
+            do {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask {
+                        try process.run()
+                        await withCheckedContinuation { continuation in
+                            process.terminationHandler = { _ in
+                                continuation.resume()
+                            }
+                        }
+                    }
+
+                    group.addTask {
+                        try await Task.sleep(for: .seconds(30))
+                        process.terminate()
+                        throw NSError(
+                            domain: "MessagesError",
+                            code: 14,
+                            userInfo: [
+                                NSLocalizedDescriptionKey:
+                                    "Messages send timed out after 30 seconds"
+                            ]
+                        )
+                    }
+
+                    _ = try await group.next()
+                    group.cancelAll()
+                }
+            } catch {
+                if process.isRunning {
+                    process.terminate()
+                }
+                throw error
+            }
+
+            let errorData = (try? errorHandle.readToEnd()) ?? Data()
+
+            guard process.terminationStatus == 0 else {
+                let stderr = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+                log.error("messages_send failed: \(stderr, privacy: .public)")
+
+                if stderr.contains("-1743") {
+                    throw NSError(
+                        domain: "MessagesError",
+                        code: 12,
+                        userInfo: [
+                            NSLocalizedDescriptionKey:
+                                "Not authorized to send Apple Events to Messages. Enable iMCP in System Settings > Privacy & Security > Automation."
+                        ]
+                    )
+                }
+
+                throw NSError(
+                    domain: "MessagesError",
+                    code: 13,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to send message: \(stderr)"]
+                )
+            }
+
+            log.info("Message sent successfully to \(to, privacy: .private)")
+
+            return Value.object([
+                "success": .bool(true),
+                "to": .string(to),
+                "service": .string(serviceType),
+            ])
         }
     }
 
