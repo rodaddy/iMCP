@@ -168,6 +168,131 @@ final class MessageService: NSObject, Service, NSOpenSavePanelDelegate {
                 "hasPart": Value.array(messages.map({ .object($0) })),
             ]
         }
+
+        Tool(
+            name: "messages_send",
+            description:
+                "Send a message via the Messages app using AppleScript",
+            inputSchema: .object(
+                properties: [
+                    "to": .string(
+                        description:
+                            "Recipient phone number (E.164 format, e.g. +15551234567) or email address"
+                    ),
+                    "text": .string(
+                        description: "Message text to send"
+                    ),
+                    "service": .string(
+                        description: "Messaging service to use",
+                        default: .string("iMessage"),
+                        enum: [.string("iMessage"), .string("SMS")]
+                    ),
+                ],
+                required: ["to", "text"],
+                additionalProperties: false
+            ),
+            annotations: .init(
+                title: "Send Message",
+                destructiveHint: true,
+                openWorldHint: false
+            )
+        ) { arguments in
+            guard case .string(let to) = arguments["to"], !to.isEmpty else {
+                throw NSError(
+                    domain: "MessagesError",
+                    code: 10,
+                    userInfo: [NSLocalizedDescriptionKey: "Recipient is required"]
+                )
+            }
+
+            guard case .string(let text) = arguments["text"], !text.isEmpty else {
+                throw NSError(
+                    domain: "MessagesError",
+                    code: 11,
+                    userInfo: [NSLocalizedDescriptionKey: "Message text is required"]
+                )
+            }
+
+            let serviceType: String
+            if case .string(let svc) = arguments["service"], svc == "SMS" {
+                serviceType = "SMS"
+            } else {
+                serviceType = "iMessage"
+            }
+
+            let escapedTo = to.appleScriptEscaped
+            let escapedText = text.appleScriptEscaped
+
+            let script = """
+                tell application "Messages"
+                    set targetService to 1st service whose service type = \(serviceType)
+                    set targetBuddy to buddy "\(escapedTo)" of targetService
+                    send "\(escapedText)" to targetBuddy
+                end tell
+                """
+
+            log.info("Sending message to \(to, privacy: .private)")
+
+            // Use osascript subprocess for thread safety
+            let tempDir = FileManager.default.temporaryDirectory
+            let scriptFile = tempDir.appendingPathComponent(
+                "messages_send_\(UUID().uuidString).scpt"
+            )
+
+            defer {
+                try? FileManager.default.removeItem(at: scriptFile)
+            }
+
+            try script.write(to: scriptFile, atomically: true, encoding: .utf8)
+
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            process.arguments = [scriptFile.path]
+
+            let errorPipe = Pipe()
+            process.standardError = errorPipe
+            let errorHandle = errorPipe.fileHandleForReading
+            defer { errorHandle.closeFile() }
+
+            try process.run()
+            await withCheckedContinuation { continuation in
+                process.terminationHandler = { _ in
+                    continuation.resume()
+                }
+            }
+
+            let errorData = (try? errorHandle.readToEnd()) ?? Data()
+
+            guard process.terminationStatus == 0 else {
+                let stderr = String(data: errorData, encoding: .utf8) ?? "Unknown error"
+                log.error("messages_send failed: \(stderr, privacy: .public)")
+
+                if stderr.contains("-1743") {
+                    throw NSError(
+                        domain: "MessagesError",
+                        code: 12,
+                        userInfo: [
+                            NSLocalizedDescriptionKey:
+                                "Not authorized to send Apple Events to Messages. Enable iMCP in System Settings > Privacy & Security > Automation."
+                        ]
+                    )
+                }
+
+                throw NSError(
+                    domain: "MessagesError",
+                    code: 13,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to send message: \(stderr)"]
+                )
+            }
+
+            log.info("Message sent successfully to \(to, privacy: .private)")
+
+            return Value.object([
+                "success": .bool(true),
+                "to": .string(to),
+                "service": .string(serviceType),
+            ])
+        }
     }
 
     private var canAccessDatabaseAtDefaultPath: Bool {

@@ -55,9 +55,11 @@ enum ServiceRegistry {
             CaptureService.shared,
             ContactsService.shared,
             LocationService.shared,
+            MailService.shared,
             MapsService.shared,
             MusicService.shared,
             MessageService.shared,
+            NotesService.shared,
             RemindersService.shared,
             ShortcutsService.shared,
             UtilitiesService.shared,
@@ -74,9 +76,11 @@ enum ServiceRegistry {
         captureEnabled: Binding<Bool>,
         contactsEnabled: Binding<Bool>,
         locationEnabled: Binding<Bool>,
+        mailEnabled: Binding<Bool>,
         mapsEnabled: Binding<Bool>,
         musicEnabled: Binding<Bool>,
         messagesEnabled: Binding<Bool>,
+        notesEnabled: Binding<Bool>,
         remindersEnabled: Binding<Bool>,
         shortcutsEnabled: Binding<Bool>,
         utilitiesEnabled: Binding<Bool>,
@@ -119,6 +123,13 @@ enum ServiceRegistry {
                 binding: locationEnabled
             ),
             ServiceConfig(
+                name: "Mail",
+                iconName: "envelope.fill",
+                color: .blue.mix(with: .white, by: 0.3),
+                service: MailService.shared,
+                binding: mailEnabled
+            ),
+            ServiceConfig(
                 name: "Maps",
                 iconName: "mappin.and.ellipse",
                 color: .purple,
@@ -138,6 +149,13 @@ enum ServiceRegistry {
                 color: .green,
                 service: MessageService.shared,
                 binding: messagesEnabled
+            ),
+            ServiceConfig(
+                name: "Notes",
+                iconName: "note.text",
+                color: .yellow,
+                service: NotesService.shared,
+                binding: notesEnabled
             ),
             ServiceConfig(
                 name: "Reminders",
@@ -188,9 +206,11 @@ final class ServerController: ObservableObject {
     @AppStorage("captureEnabled") private var captureEnabled = false
     @AppStorage("contactsEnabled") private var contactsEnabled = false
     @AppStorage("locationEnabled") private var locationEnabled = false
+    @AppStorage("mailEnabled") private var mailEnabled = false
     @AppStorage("mapsEnabled") private var mapsEnabled = true  // Default enabled
     @AppStorage("musicEnabled") private var musicEnabled = false
     @AppStorage("messagesEnabled") private var messagesEnabled = false
+    @AppStorage("notesEnabled") private var notesEnabled = false
     @AppStorage("remindersEnabled") private var remindersEnabled = false
     @AppStorage("shortcutsEnabled") private var shortcutsEnabled = false
     @AppStorage("utilitiesEnabled") private var utilitiesEnabled = true  // Default enabled
@@ -207,9 +227,11 @@ final class ServerController: ObservableObject {
             captureEnabled: $captureEnabled,
             contactsEnabled: $contactsEnabled,
             locationEnabled: $locationEnabled,
+            mailEnabled: $mailEnabled,
             mapsEnabled: $mapsEnabled,
             musicEnabled: $musicEnabled,
             messagesEnabled: $messagesEnabled,
+            notesEnabled: $notesEnabled,
             remindersEnabled: $remindersEnabled,
             shortcutsEnabled: $shortcutsEnabled,
             utilitiesEnabled: $utilitiesEnabled,
