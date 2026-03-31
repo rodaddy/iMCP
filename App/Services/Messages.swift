@@ -50,6 +50,55 @@ final class MessageService: NSObject, Service, NSOpenSavePanelDelegate {
 
     var tools: [Tool] {
         Tool(
+            name: "messages_chats_list",
+            description:
+                "List message conversations/threads with participants and last message date",
+            inputSchema: .object(
+                properties: [
+                    "limit": .integer(
+                        description: "Maximum conversations to return",
+                        default: .int(30)
+                    ),
+                ],
+                additionalProperties: false
+            ),
+            annotations: .init(
+                title: "List Chats",
+                readOnlyHint: true,
+                openWorldHint: false
+            )
+        ) { arguments in
+            log.debug("Fetching chat list")
+            try await self.activate()
+
+            let limit: Int
+            if case .int(let l) = arguments["limit"] {
+                limit = l
+            } else {
+                limit = 30
+            }
+
+            let db = try self.createDatabaseConnection()
+            let chats = try db.fetchChats(limit: limit)
+
+            return Value.array(chats.map { chat in
+                var chatObj: [String: Value] = [
+                    "id": .string(chat.id.rawValue),
+                    "participants": .array(
+                        chat.participants.map { .string($0.rawValue) }
+                    ),
+                ]
+                if let displayName = chat.displayName, !displayName.isEmpty {
+                    chatObj["displayName"] = .string(displayName)
+                }
+                if let lastDate = chat.lastMessageDate {
+                    chatObj["lastMessageDate"] = .string(lastDate.formatted(.iso8601))
+                }
+                return Value.object(chatObj)
+            })
+        }
+
+        Tool(
             name: "messages_fetch",
             description: "Fetch messages from the Messages app",
             inputSchema: .object(
