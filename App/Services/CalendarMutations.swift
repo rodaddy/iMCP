@@ -192,7 +192,7 @@ extension CalendarService {
                 from: parsedStart.date,
                 isDateOnly: parsedStart.isDateOnly
             )
-            let endDate = calendar.normalizedStartDate(
+            let endDate = calendar.normalizedEndDate(
                 from: parsedEnd.date,
                 isDateOnly: parsedEnd.isDateOnly
             )
@@ -395,7 +395,7 @@ extension CalendarService {
             if case .string(let endStr) = arguments["end"],
                 let parsed = ISO8601DateFormatter.parsedLenientISO8601Date(fromISO8601String: endStr)
             {
-                event.endDate = cal.normalizedStartDate(
+                event.endDate = cal.normalizedEndDate(
                     from: parsed.date, isDateOnly: parsed.isDateOnly
                 )
             }
@@ -535,9 +535,18 @@ extension CalendarService {
                 }
 
             case "proximity":
+                let latitude: Double?
+                if case .double(let d) = config["latitude"] { latitude = d }
+                else if case .int(let i) = config["latitude"] { latitude = Double(i) }
+                else { latitude = nil }
+
+                let longitude: Double?
+                if case .double(let d) = config["longitude"] { longitude = d }
+                else if case .int(let i) = config["longitude"] { longitude = Double(i) }
+                else { longitude = nil }
+
                 if case .string(let locationTitle) = config["locationTitle"],
-                    case .double(let latitude) = config["latitude"],
-                    case .double(let longitude) = config["longitude"]
+                    let latitude, let longitude
                 {
                     alarm = EKAlarm()
 

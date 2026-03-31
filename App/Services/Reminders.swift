@@ -167,7 +167,7 @@ final class RemindersService: Service {
                     )
                 }
             } else {
-                // If completion status not specified, use incomplete predicate as default
+                // If completion status not specified, fetch all reminders
                 predicate = self.eventStore.predicateForReminders(in: reminderLists)
             }
 
