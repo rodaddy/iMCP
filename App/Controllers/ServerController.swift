@@ -50,6 +50,7 @@ struct ServiceConfig: Identifiable {
 enum ServiceRegistry {
     static let services: [any Service] = {
         var services: [any Service] = [
+            AppleScriptService.shared,
             CalendarService.shared,
             CaptureService.shared,
             ContactsService.shared,
@@ -68,6 +69,7 @@ enum ServiceRegistry {
     }()
 
     static func configureServices(
+        appleScriptEnabled: Binding<Bool>,
         calendarEnabled: Binding<Bool>,
         captureEnabled: Binding<Bool>,
         contactsEnabled: Binding<Bool>,
@@ -81,6 +83,13 @@ enum ServiceRegistry {
         weatherEnabled: Binding<Bool>
     ) -> [ServiceConfig] {
         var configs: [ServiceConfig] = [
+            ServiceConfig(
+                name: "AppleScript",
+                iconName: "applescript.fill",
+                color: .gray,
+                service: AppleScriptService.shared,
+                binding: appleScriptEnabled
+            ),
             ServiceConfig(
                 name: "Calendar",
                 iconName: "calendar",
@@ -174,6 +183,7 @@ final class ServerController: ObservableObject {
     private let networkManager = ServerNetworkManager()
 
     // MARK: - AppStorage for Service Enablement States
+    @AppStorage("appleScriptEnabled") private var appleScriptEnabled = false
     @AppStorage("calendarEnabled") private var calendarEnabled = false
     @AppStorage("captureEnabled") private var captureEnabled = false
     @AppStorage("contactsEnabled") private var contactsEnabled = false
@@ -192,6 +202,7 @@ final class ServerController: ObservableObject {
     // MARK: - Computed Properties for Service Configurations and Bindings
     var computedServiceConfigs: [ServiceConfig] {
         ServiceRegistry.configureServices(
+            appleScriptEnabled: $appleScriptEnabled,
             calendarEnabled: $calendarEnabled,
             captureEnabled: $captureEnabled,
             contactsEnabled: $contactsEnabled,
