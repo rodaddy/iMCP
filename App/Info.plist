@@ -8,7 +8,7 @@
 		<string>iMCP uses Apple Music access to search the catalog and report now playing
 			information.</string>
 		<key>NSAppleEventsUsageDescription</key>
-		<string>iMCP uses Apple Events to control and read now playing data from Music.</string>
+		<string>iMCP uses Apple Events to automate macOS applications including Music, Messages, Notes, Mail, Finder, System Events, and Chrome.</string>
 		<key>NSBonjourServices</key>
 		<array>
 			<string>_mcp._tcp</string>

@@ -190,7 +190,11 @@ final class RemindersService: Service {
                 }
             }
 
-            return filteredReminders.map { PlanAction($0) }
+            return filteredReminders.map { ekReminder in
+                var action = PlanAction(ekReminder)
+                action.identifier = ekReminder.calendarItemIdentifier
+                return action
+            }
         }
 
         Tool(
@@ -296,7 +300,9 @@ final class RemindersService: Service {
             // Save the reminder
             try self.eventStore.save(reminder, commit: true)
 
-            return PlanAction(reminder)
+            var result = PlanAction(reminder)
+            result.identifier = reminder.calendarItemIdentifier
+            return result
         }
     }
 }
