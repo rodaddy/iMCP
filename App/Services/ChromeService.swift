@@ -270,17 +270,35 @@ final class ChromeService: Service {
                 tabRef = "active tab of window \(windowIndex)"
             }
 
+            // Wrap JS in try/catch so errors are surfaced instead of returning missing value
+            let wrappedCode = "try { \(escapedCode) } catch(e) { 'CHROME_JS_ERROR: ' + e.message }"
             let script = """
                 tell application "Google Chrome"
-                    set result to execute \(tabRef) javascript "\(escapedCode)"
-                    return result
+                    set jsResult to execute \(tabRef) javascript "\(wrappedCode)"
+                    if jsResult is missing value then
+                        return "CHROME_JS_NULL"
+                    end if
+                    return jsResult
                 end tell
                 """
 
             let result = try await self.runScript(script, timeout: .seconds(30))
+
+            if result.hasPrefix("CHROME_JS_ERROR: ") {
+                let errorMsg = String(result.dropFirst("CHROME_JS_ERROR: ".count))
+                throw NSError(
+                    domain: "ChromeError",
+                    code: 7,
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            "JavaScript error: \(errorMsg)"
+                    ]
+                )
+            }
+
             return Value.object([
                 "success": .bool(true),
-                "result": .string(result),
+                "result": .string(result == "CHROME_JS_NULL" ? "" : result),
             ])
         }
     }

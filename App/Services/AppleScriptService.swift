@@ -165,20 +165,27 @@ final class AppleScriptService: Service {
         guard process.terminationStatus == 0 else {
             log.error("AppleScript failed: \(stderr, privacy: .public)")
 
-            // Check for common errors
             if stderr.contains("-1743") {
-                return Value.object([
-                    "success": .bool(false),
-                    "error": .string(
-                        "Not authorized to send Apple Events. Enable iMCP in System Settings > Privacy & Security > Automation."
-                    ),
-                ])
+                throw NSError(
+                    domain: "AppleScriptError",
+                    code: 2,
+                    userInfo: [
+                        NSLocalizedDescriptionKey:
+                            "Not authorized to send Apple Events. Enable iMCP in System Settings > Privacy & Security > Automation."
+                    ]
+                )
             }
 
-            return Value.object([
-                "success": .bool(false),
-                "error": .string(stderr.isEmpty ? "Script failed with exit code \(process.terminationStatus)" : stderr),
-            ])
+            throw NSError(
+                domain: "AppleScriptError",
+                code: 3,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        stderr.isEmpty
+                            ? "Script failed with exit code \(process.terminationStatus)"
+                            : stderr
+                ]
+            )
         }
 
         log.info("AppleScript completed successfully")

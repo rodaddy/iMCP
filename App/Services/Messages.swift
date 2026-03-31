@@ -303,11 +303,38 @@ final class MessageService: NSObject, Service, NSOpenSavePanelDelegate {
             let errorHandle = errorPipe.fileHandleForReading
             defer { errorHandle.closeFile() }
 
-            try process.run()
-            await withCheckedContinuation { continuation in
-                process.terminationHandler = { _ in
-                    continuation.resume()
+            do {
+                try await withThrowingTaskGroup(of: Void.self) { group in
+                    group.addTask {
+                        try process.run()
+                        await withCheckedContinuation { continuation in
+                            process.terminationHandler = { _ in
+                                continuation.resume()
+                            }
+                        }
+                    }
+
+                    group.addTask {
+                        try await Task.sleep(for: .seconds(30))
+                        process.terminate()
+                        throw NSError(
+                            domain: "MessagesError",
+                            code: 14,
+                            userInfo: [
+                                NSLocalizedDescriptionKey:
+                                    "Messages send timed out after 30 seconds"
+                            ]
+                        )
+                    }
+
+                    _ = try await group.next()
+                    group.cancelAll()
                 }
+            } catch {
+                if process.isRunning {
+                    process.terminate()
+                }
+                throw error
             }
 
             let errorData = (try? errorHandle.readToEnd()) ?? Data()
