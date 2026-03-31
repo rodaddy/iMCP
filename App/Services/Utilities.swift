@@ -55,13 +55,19 @@ final class UtilitiesService: Service {
                 content.sound = .default
             }
 
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            if settings.authorizationStatus == .notDetermined {
+                try await center.requestAuthorization(options: [.alert, .sound])
+            }
+
             let request = UNNotificationRequest(
                 identifier: UUID().uuidString,
                 content: content,
                 trigger: nil
             )
 
-            try await UNUserNotificationCenter.current().add(request)
+            try await center.add(request)
 
             return Value.object([
                 "success": .bool(true),

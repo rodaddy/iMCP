@@ -189,6 +189,13 @@ enum ServiceRegistry {
                 service: ShortcutsService.shared,
                 binding: shortcutsEnabled
             ),
+            ServiceConfig(
+                name: "Utilities",
+                iconName: "wrench.fill",
+                color: .gray.mix(with: .white, by: 0.2),
+                service: UtilitiesService.shared,
+                binding: utilitiesEnabled
+            ),
         ]
         #if WEATHERKIT_AVAILABLE
             configs.append(

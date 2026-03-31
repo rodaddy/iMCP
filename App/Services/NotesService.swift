@@ -51,7 +51,11 @@ final class NotesService: Service {
                             if noteCount >= \(limit) then exit repeat
                             set noteId to id of n
                             set noteName to name of n
+                            try
                             set noteFolder to name of container of n
+                        on error
+                            set noteFolder to "Notes"
+                        end try
                             set noteDate to modification date of n
                             set output to output & noteId & "\\t" & noteName & "\\t" & noteFolder & "\\t" & (noteDate as string) & linefeed
                             set noteCount to noteCount + 1
@@ -69,7 +73,11 @@ final class NotesService: Service {
                             if noteCount >= \(limit) then exit repeat
                             set noteId to id of n
                             set noteName to name of n
+                            try
                             set noteFolder to name of container of n
+                        on error
+                            set noteFolder to "Notes"
+                        end try
                             set noteDate to modification date of n
                             set output to output & noteId & "\\t" & noteName & "\\t" & noteFolder & "\\t" & (noteDate as string) & linefeed
                             set noteCount to noteCount + 1
@@ -130,7 +138,11 @@ final class NotesService: Service {
                         if noteCount >= \(limit) then exit repeat
                         set noteId to id of n
                         set noteName to name of n
-                        set noteFolder to name of container of n
+                        try
+                            set noteFolder to name of container of n
+                        on error
+                            set noteFolder to "Notes"
+                        end try
                         set noteDate to modification date of n
                         set output to output & noteId & "\\t" & noteName & "\\t" & noteFolder & "\\t" & (noteDate as string) & linefeed
                         set noteCount to noteCount + 1
@@ -171,7 +183,11 @@ final class NotesService: Service {
                         set n to first note whose id is "\(escapedId)"
                         set noteName to name of n
                         set noteBody to plaintext of n
-                        set noteFolder to name of container of n
+                        try
+                            set noteFolder to name of container of n
+                        on error
+                            set noteFolder to "Notes"
+                        end try
                         set noteDate to modification date of n
                         set noteCreated to creation date of n
                         return noteName & "\\n---SEPARATOR---\\n" & noteBody & "\\n---SEPARATOR---\\n" & noteFolder & "\\n---SEPARATOR---\\n" & (noteDate as string) & "\\n---SEPARATOR---\\n" & (noteCreated as string)
@@ -184,7 +200,11 @@ final class NotesService: Service {
                         set n to first note whose name is "\(escapedName)"
                         set noteName to name of n
                         set noteBody to plaintext of n
-                        set noteFolder to name of container of n
+                        try
+                            set noteFolder to name of container of n
+                        on error
+                            set noteFolder to "Notes"
+                        end try
                         set noteDate to modification date of n
                         set noteCreated to creation date of n
                         return noteName & "\\n---SEPARATOR---\\n" & noteBody & "\\n---SEPARATOR---\\n" & noteFolder & "\\n---SEPARATOR---\\n" & (noteDate as string) & "\\n---SEPARATOR---\\n" & (noteCreated as string)
