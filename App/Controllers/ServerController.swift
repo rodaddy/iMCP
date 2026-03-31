@@ -53,7 +53,9 @@ enum ServiceRegistry {
             AppleScriptService.shared,
             CalendarService.shared,
             CaptureService.shared,
+            ChromeService.shared,
             ContactsService.shared,
+            DesktopService.shared,
             LocationService.shared,
             MailService.shared,
             MapsService.shared,
@@ -74,7 +76,9 @@ enum ServiceRegistry {
         appleScriptEnabled: Binding<Bool>,
         calendarEnabled: Binding<Bool>,
         captureEnabled: Binding<Bool>,
+        chromeEnabled: Binding<Bool>,
         contactsEnabled: Binding<Bool>,
+        desktopEnabled: Binding<Bool>,
         locationEnabled: Binding<Bool>,
         mailEnabled: Binding<Bool>,
         mapsEnabled: Binding<Bool>,
@@ -109,11 +113,25 @@ enum ServiceRegistry {
                 binding: captureEnabled
             ),
             ServiceConfig(
+                name: "Chrome",
+                iconName: "globe",
+                color: .green.mix(with: .blue, by: 0.3),
+                service: ChromeService.shared,
+                binding: chromeEnabled
+            ),
+            ServiceConfig(
                 name: "Contacts",
                 iconName: "person.crop.square.filled.and.at.rectangle.fill",
                 color: .brown,
                 service: ContactsService.shared,
                 binding: contactsEnabled
+            ),
+            ServiceConfig(
+                name: "Desktop",
+                iconName: "macwindow",
+                color: .teal,
+                service: DesktopService.shared,
+                binding: desktopEnabled
             ),
             ServiceConfig(
                 name: "Location",
@@ -204,7 +222,9 @@ final class ServerController: ObservableObject {
     @AppStorage("appleScriptEnabled") private var appleScriptEnabled = false
     @AppStorage("calendarEnabled") private var calendarEnabled = false
     @AppStorage("captureEnabled") private var captureEnabled = false
+    @AppStorage("chromeEnabled") private var chromeEnabled = false
     @AppStorage("contactsEnabled") private var contactsEnabled = false
+    @AppStorage("desktopEnabled") private var desktopEnabled = false
     @AppStorage("locationEnabled") private var locationEnabled = false
     @AppStorage("mailEnabled") private var mailEnabled = false
     @AppStorage("mapsEnabled") private var mapsEnabled = true  // Default enabled
@@ -225,7 +245,9 @@ final class ServerController: ObservableObject {
             appleScriptEnabled: $appleScriptEnabled,
             calendarEnabled: $calendarEnabled,
             captureEnabled: $captureEnabled,
+            chromeEnabled: $chromeEnabled,
             contactsEnabled: $contactsEnabled,
+            desktopEnabled: $desktopEnabled,
             locationEnabled: $locationEnabled,
             mailEnabled: $mailEnabled,
             mapsEnabled: $mapsEnabled,
