@@ -11,6 +11,8 @@ final class DesktopService: Service {
     private let osascriptPath = "/usr/bin/osascript"
 
     var tools: [Tool] {
+        uiScriptingTools
+
         Tool(
             name: "desktop_windows_list",
             description:
@@ -396,7 +398,7 @@ final class DesktopService: Service {
 
     // MARK: - Private Implementation
 
-    private func runScript(_ source: String, timeout: Duration = .seconds(15)) async throws
+    func runScript(_ source: String, timeout: Duration = .seconds(15)) async throws
         -> String
     {
         let tempDir = FileManager.default.temporaryDirectory

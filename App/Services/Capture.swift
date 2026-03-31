@@ -94,6 +94,8 @@ final class CaptureService: NSObject, Service {
     }
 
     var tools: [Tool] {
+        recordingTools
+
         Tool(
             name: "capture_take_picture",
             description: "Take a picture with the device camera",

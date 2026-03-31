@@ -29,22 +29,23 @@ All 15 PAI LAWs from `~/.claude/CLAUDE.md` apply. Check LAWs BEFORE every action
 
 ## Current State (2026-03-31)
 
-### Working (73 tools via mcp2cli, 16 services)
+### Working (93 tools, 91 via mcp2cli + 2 blocked, 17 services)
 
 | Service | Tools | Framework |
 |---------|-------|-----------|
 | AppleScript | `applescript_execute`, `applescript_list_apps` | osascript subprocess |
 | Calendar | `calendars_list`, `events_fetch`, `events_create`, `events_update`, `events_delete` | EventKit |
-| Capture | `capture_take_screenshot` (camera/mic blocked by mcp2cli) | ScreenCaptureKit |
+| Capture | `capture_take_screenshot`, `capture_record_screen` (camera/mic blocked by mcp2cli) | ScreenCaptureKit + AVAssetWriter |
 | Chrome | `chrome_tabs_list`, `chrome_navigate`, `chrome_tab_activate`, `chrome_window_create`, `chrome_execute_javascript` | Chrome AppleScript |
 | Contacts | `contacts_me`, `contacts_search`, `contacts_create`, `contacts_update`, `contacts_delete`, `contacts_groups_list` | Contacts framework |
-| Desktop | `desktop_windows_list`, `desktop_window_move`, `desktop_window_focus`, `desktop_app_launch`, `desktop_app_quit`, `desktop_clipboard_read`, `desktop_clipboard_write` | System Events AppleScript + NSWorkspace + NSPasteboard |
+| Desktop | `desktop_windows_list`, `desktop_window_move`, `desktop_window_focus`, `desktop_app_launch`, `desktop_app_quit`, `desktop_clipboard_read`, `desktop_clipboard_write`, `desktop_ui_elements`, `desktop_ui_click`, `desktop_ui_type`, `desktop_ui_read` | System Events AppleScript + NSWorkspace + NSPasteboard + AXUIElement |
+| Files | `files_list`, `files_read`, `files_info`, `files_search`, `files_write` | FileManager + UniformTypeIdentifiers |
 | Location | `location_current`, `location_geocode`, `location_reverse_geocode` | CoreLocation |
-| Mail | `mail_mailboxes_list`, `mail_search`, `mail_read`, `mail_send` | Mail AppleScript |
+| Mail | `mail_mailboxes_list`, `mail_search`, `mail_read`, `mail_send`, `mail_reply`, `mail_forward`, `mail_delete`, `mail_move`, `mail_flag`, `mail_mark_read` | Mail AppleScript |
 | Maps | `maps_search`, `maps_directions`, `maps_eta`, `maps_explore`, `maps_generate` | MapKit |
 | Messages | `messages_chats_list`, `messages_fetch`, `messages_send` | SQLite (read) + AppleScript (send) |
 | Music | `music_now_playing`, `music_control`, `music_catalog_search` | MusicKit + AppleScript |
-| Notes | `notes_list`, `notes_search`, `notes_read`, `notes_create`, `notes_update`, `notes_delete`, `notes_folders_list`, `notes_folders_create` | Notes AppleScript |
+| Notes | `notes_list`, `notes_search`, `notes_read`, `notes_create`, `notes_update`, `notes_delete`, `notes_folders_list`, `notes_folders_create`, `notes_attach`, `notes_move` | Notes AppleScript |
 | Reminders | `reminders_lists`, `reminders_fetch`, `reminders_create`, `reminders_update`, `reminders_complete`, `reminders_delete`, `reminders_lists_create`, `reminders_lists_delete`, `reminders_lists_rename` | EventKit |
 | Shortcuts | `shortcuts_list`, `shortcuts_run`, `shortcuts_get_details`, `shortcuts_delete` | /usr/bin/shortcuts CLI |
 | Utilities | `utilities_notification`, `utilities_beep` | UNUserNotificationCenter + AudioToolbox |
@@ -61,20 +62,24 @@ All 15 PAI LAWs from `~/.claude/CLAUDE.md` apply. Check LAWs BEFORE every action
 - MCP Swift SDK may have more concurrency bugs beyond the 2 we patched
 - `applescript_execute` and `chrome_execute_javascript` are arbitrary code execution (by design, annotated destructiveHint)
 - `notes_search` is slow on large libraries (AppleScript `whose plaintext contains` is O(n))
-- `mail_search` without mailbox scope can be slow on large mailboxes
+- `mail_search` without mailbox/account scope can be slow on large mailboxes -- use account param
 - Desktop `windows_list`/`window_move` require System Events automation permission
+- Desktop `desktop_ui_*` tools require Accessibility permission (System Settings > Privacy > Accessibility)
 - Services disabled by default need one-time enable via iMCP menubar UI or `defaults write com.rodaddy.iMCP <key>Enabled -bool true`
 - ServerController.swift is 1,075 lines (tech debt -- needs extraction)
 - `runScript` osascript pattern duplicated across 5 services (extract shared runner)
 - Contacts error domain is "ContactsService" instead of "ContactsError" (upstream inconsistency)
+- `notes_attach` requires file access entitlements -- works in debug, may sandbox-fail in release for paths outside temp directory
+- `capture_record_screen` returns video as base64 over JSON-RPC -- mcp2cli 30s timeout too short for video. Save-to-file approach needed for practical use.
 
 ## Build
 
 ```bash
-# From source (ad-hoc signing)
+# From source (dev signed, no sandbox -- required for Accessibility/UI scripting)
 xcodebuild -project iMCP.xcodeproj -scheme iMCP -configuration Release build \
-  CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
-  DEVELOPMENT_TEAM="" PROVISIONING_PROFILE_SPECIFIER=""
+  CODE_SIGN_IDENTITY="Apple Development: rodaddy@icloud.com (M273RUB393)" \
+  CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="R8S2JFBBDW" \
+  PROVISIONING_PROFILE_SPECIFIER="" ENABLE_APP_SANDBOX=NO
 
 # Or open in Xcode with your signing identity
 open iMCP.xcodeproj
@@ -82,6 +87,8 @@ open iMCP.xcodeproj
 # Remove WeatherKit capability (personal teams don't support it)
 # Bundle ID: com.rodaddy.iMCP
 ```
+
+**Important:** After replacing the binary, re-grant iMCP in System Settings for Accessibility and Screen Recording (remove + re-add). Using stable code signing (`R8S2JFBBDW` team) minimizes how often this happens. Sandbox must be disabled for UI scripting tools.
 
 ## mcp2cli Integration
 
@@ -109,3 +116,11 @@ Note: consider adding `applescript_execute`, `chrome_execute_javascript`, `messa
 - Named calendar lookup is case-insensitive by title -- ambiguous if two sources share a name
 - Notes `body` in create/update is HTML (Notes.app uses rich text internally)
 - AppleScript-based tools need one-time Automation permission grant per target app
+- `mail_send` supports comma-separated To/CC/BCC, `attachments` array of file paths, `isHTML` flag, `from` for account selection
+- `mail_reply`/`mail_forward` use Mail.app's native reply/forward commands (preserves threading)
+- `mail_search` supports `account` param to avoid ambiguous mailbox names across accounts
+- `notes_attach` embeds files as true iCloud-syncing attachments (not HTML references)
+- `notes_move` moves to pre-existing folders -- useful for shared/collaborative folder workflow
+- `desktop_ui_click` element param uses AppleScript UI element references (e.g. `button "Done" of window 1`)
+- `desktop_ui_type` types into whatever has focus -- use `desktop_window_focus` first to target an app
+- `capture_record_screen` uses SCStream + AVAssetWriter at 30fps, quality controls resolution scaling
