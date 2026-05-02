@@ -56,6 +56,7 @@ enum ServiceRegistry {
             ChromeService.shared,
             ContactsService.shared,
             DesktopService.shared,
+            FilesService.shared,
             LocationService.shared,
             MailService.shared,
             MapsService.shared,
@@ -79,6 +80,7 @@ enum ServiceRegistry {
         chromeEnabled: Binding<Bool>,
         contactsEnabled: Binding<Bool>,
         desktopEnabled: Binding<Bool>,
+        filesEnabled: Binding<Bool>,
         locationEnabled: Binding<Bool>,
         mailEnabled: Binding<Bool>,
         mapsEnabled: Binding<Bool>,
@@ -132,6 +134,13 @@ enum ServiceRegistry {
                 color: .teal,
                 service: DesktopService.shared,
                 binding: desktopEnabled
+            ),
+            ServiceConfig(
+                name: "Files",
+                iconName: "folder.fill",
+                color: .blue.mix(with: .green, by: 0.3),
+                service: FilesService.shared,
+                binding: filesEnabled
             ),
             ServiceConfig(
                 name: "Location",
@@ -232,6 +241,7 @@ final class ServerController: ObservableObject {
     @AppStorage("chromeEnabled") private var chromeEnabled = false
     @AppStorage("contactsEnabled") private var contactsEnabled = false
     @AppStorage("desktopEnabled") private var desktopEnabled = false
+    @AppStorage("filesEnabled") private var filesEnabled = false
     @AppStorage("locationEnabled") private var locationEnabled = false
     @AppStorage("mailEnabled") private var mailEnabled = false
     @AppStorage("mapsEnabled") private var mapsEnabled = true  // Default enabled
@@ -255,6 +265,7 @@ final class ServerController: ObservableObject {
             chromeEnabled: $chromeEnabled,
             contactsEnabled: $contactsEnabled,
             desktopEnabled: $desktopEnabled,
+            filesEnabled: $filesEnabled,
             locationEnabled: $locationEnabled,
             mailEnabled: $mailEnabled,
             mapsEnabled: $mapsEnabled,

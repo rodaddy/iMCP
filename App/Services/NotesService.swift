@@ -10,6 +10,8 @@ final class NotesService: Service {
     private let osascriptPath = "/usr/bin/osascript"
 
     var tools: [Tool] {
+        additionalTools
+
         Tool(
             name: "notes_list",
             description:
@@ -190,7 +192,14 @@ final class NotesService: Service {
                         end try
                         set noteDate to modification date of n
                         set noteCreated to creation date of n
-                        return noteName & "\\n---SEPARATOR---\\n" & noteBody & "\\n---SEPARATOR---\\n" & noteFolder & "\\n---SEPARATOR---\\n" & (noteDate as string) & "\\n---SEPARATOR---\\n" & (noteCreated as string)
+                        set attCount to count of attachments of n
+                        set attInfo to ""
+                        if attCount > 0 then
+                            repeat with a in attachments of n
+                                set attInfo to attInfo & name of a & ","
+                            end repeat
+                        end if
+                        return noteName & "\\n---SEPARATOR---\\n" & noteBody & "\\n---SEPARATOR---\\n" & noteFolder & "\\n---SEPARATOR---\\n" & (noteDate as string) & "\\n---SEPARATOR---\\n" & (noteCreated as string) & "\\n---SEPARATOR---\\n" & attCount & "\\n---SEPARATOR---\\n" & attInfo
                     end tell
                     """
             } else if case .string(let name) = arguments["name"], !name.isEmpty {
@@ -207,7 +216,14 @@ final class NotesService: Service {
                         end try
                         set noteDate to modification date of n
                         set noteCreated to creation date of n
-                        return noteName & "\\n---SEPARATOR---\\n" & noteBody & "\\n---SEPARATOR---\\n" & noteFolder & "\\n---SEPARATOR---\\n" & (noteDate as string) & "\\n---SEPARATOR---\\n" & (noteCreated as string)
+                        set attCount to count of attachments of n
+                        set attInfo to ""
+                        if attCount > 0 then
+                            repeat with a in attachments of n
+                                set attInfo to attInfo & name of a & ","
+                            end repeat
+                        end if
+                        return noteName & "\\n---SEPARATOR---\\n" & noteBody & "\\n---SEPARATOR---\\n" & noteFolder & "\\n---SEPARATOR---\\n" & (noteDate as string) & "\\n---SEPARATOR---\\n" & (noteCreated as string) & "\\n---SEPARATOR---\\n" & attCount & "\\n---SEPARATOR---\\n" & attInfo
                     end tell
                     """
             } else {
@@ -227,13 +243,24 @@ final class NotesService: Service {
                 ])
             }
 
-            return Value.object([
+            var response: [String: Value] = [
                 "name": .string(parts[0]),
                 "body": .string(parts[1]),
                 "folder": .string(parts[2]),
                 "modified": .string(parts[3]),
                 "created": .string(parts[4]),
-            ])
+            ]
+
+            if parts.count >= 7 {
+                let attCount = Int(parts[5]) ?? 0
+                response["attachmentCount"] = .int(attCount)
+                if attCount > 0 {
+                    let attNames = parts[6].components(separatedBy: ",").filter { !$0.isEmpty }
+                    response["attachments"] = .array(attNames.map { .string($0) })
+                }
+            }
+
+            return Value.object(response)
         }
 
         Tool(
@@ -514,7 +541,7 @@ final class NotesService: Service {
 
     // MARK: - Private Implementation
 
-    private func runScript(_ source: String, timeout: Duration = .seconds(30)) async throws
+    func runScript(_ source: String, timeout: Duration = .seconds(30)) async throws
         -> String
     {
         let tempDir = FileManager.default.temporaryDirectory
