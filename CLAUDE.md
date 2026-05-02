@@ -20,14 +20,15 @@ All 15 PAI LAWs from `~/.claude/CLAUDE.md` apply. Check LAWs BEFORE every action
 
 - **Xcode project** (not SPM) at `iMCP.xcodeproj`
 - Two targets: `iMCP` (SwiftUI menubar app) and `imcp-server` (stdio CLI proxy)
-- CLI subprocess discovers app via Bonjour, relays JSON-RPC over local TCP
+- CLI subprocess discovers app via Bonjour, relays JSON-RPC over local TCP, and reconnects after transient app-side socket drops
 - Services are modular: `App/Services/<Name>.swift` (one file per service, split into extensions when >600 lines)
 - Uses official MCP Swift SDK (`modelcontextprotocol/swift-sdk`)
 - ToolBuilder supports composing tools from multiple computed properties via `buildExpression`
 - AppleScript-based services use `/usr/bin/osascript` subprocess with task-group timeout pattern
+- Optional per-user launchd keepalive lives in `Scripts/launchd/` and relaunches `/Applications/iMCP.app` after crashes/non-zero exits
 - Remotes: `origin` = rodaddy/iMCP (fork), `upstream` = mattt/iMCP
 
-## Current State (2026-03-31)
+## Current State (2026-05-02)
 
 ### Working (93 tools, 91 via mcp2cli + 2 blocked, 17 services)
 
@@ -53,12 +54,14 @@ All 15 PAI LAWs from `~/.claude/CLAUDE.md` apply. Check LAWs BEFORE every action
 
 ### Patched
 - MCP Swift SDK `NetworkTransport.swift` -- fixed 2 `CheckedContinuation` data races (SendFlag/RecvFlag wrappers). Patch is in local DerivedData, not committed to SDK repo.
+- `imcp-server` now separates MCP host stdin shutdown from app-side network loss. Stdin EOF exits normally; TCP resets/closed app connections trigger Bonjour rediscovery and reconnect.
+- Added `Scripts/launchd/` keepalive installer/uninstaller for supervised local installs.
 
 ### Unreleased upstream branches
 - `mattt/files-service` -- File system access via MCP resource template. Needs cleanup (disables sandbox, changes bundle ID, has merge conflicts).
 
 ### Known Issues
-- Bonjour relay is fragile under connection churn (rapid mcp2cli calls)
+- Bonjour relay now reconnects after socket churn, but active in-flight tool calls can still fail during app restarts or listener recovery
 - MCP Swift SDK may have more concurrency bugs beyond the 2 we patched
 - `applescript_execute` and `chrome_execute_javascript` are arbitrary code execution (by design, annotated destructiveHint)
 - `notes_search` is slow on large libraries (AppleScript `whose plaintext contains` is O(n))
@@ -89,6 +92,22 @@ open iMCP.xcodeproj
 ```
 
 **Important:** After replacing the binary, re-grant iMCP in System Settings for Accessibility and Screen Recording (remove + re-add). Using stable code signing (`R8S2JFBBDW` team) minimizes how often this happens. Sandbox must be disabled for UI scripting tools.
+
+### Local Install / Keepalive
+
+```bash
+# After a successful Release build:
+BUILT_APP="$(xcodebuild -project iMCP.xcodeproj -scheme iMCP -configuration Release -showBuildSettings | awk -F ' = ' '/BUILT_PRODUCTS_DIR/ { dir=$2 } /FULL_PRODUCT_NAME/ { app=$2 } END { print dir "/" app }')"
+ditto "$BUILT_APP" /Applications/iMCP.app
+
+# Optional: install per-user launchd supervision.
+Scripts/launchd/install-keepalive.sh
+
+# Remove launchd supervision.
+Scripts/launchd/uninstall-keepalive.sh
+```
+
+Do not leave backup bundles named `*.app*` in `/Applications`; Launchpad may show them as duplicate apps. Move backups outside `/Applications` or use a non-app suffix.
 
 ## mcp2cli Integration
 

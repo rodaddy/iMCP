@@ -77,6 +77,30 @@ you can run the following command:
 brew install --cask mattt/tap/iMCP
 ```
 
+### Build from source
+
+This fork is an Xcode project with two targets: the menu bar app and the
+bundled `imcp-server` CLI. For local automation builds, use a development
+signing identity and disable the app sandbox so Accessibility and UI scripting
+tools can work:
+
+```console
+xcodebuild -project iMCP.xcodeproj -scheme iMCP -configuration Release build \
+  CODE_SIGN_IDENTITY="Apple Development: Your Name (TEAMID)" \
+  CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="TEAMID" \
+  PROVISIONING_PROFILE_SPECIFIER="" ENABLE_APP_SANDBOX=NO
+```
+
+Install the built app into `/Applications`:
+
+```console
+BUILT_APP="$(xcodebuild -project iMCP.xcodeproj -scheme iMCP -configuration Release -showBuildSettings | awk -F ' = ' '/BUILT_PRODUCTS_DIR/ { dir=$2 } /FULL_PRODUCT_NAME/ { app=$2 } END { print dir "/" app }')"
+ditto "$BUILT_APP" /Applications/iMCP.app
+```
+
+After replacing the app bundle, macOS may require you to re-grant
+Accessibility, Screen Recording, and Automation permissions.
+
 <img align="right" width="344" src="/Assets/imcp-screenshot-first-launch.png" alt="Screenshot of iMCP on first launch" />
 
 When you open the app,
@@ -241,6 +265,36 @@ amp mcp add iMCP -- /Applications/iMCP.app/Contents/MacOS/imcp-server
 > When a client first connects, iMCP will show an approval dialog.
 > Click "Allow" and check "Always trust this client" to avoid repeated prompts.
 
+### Keep iMCP running
+
+iMCP needs the menu bar app to be running for `imcp-server` to service MCP
+requests. If the app crashes or macOS terminates it, MCP clients will lose
+access until the app is relaunched.
+
+When running from a source checkout, this fork includes an optional per-user
+LaunchAgent that starts iMCP at login and relaunches it after crashes or
+non-zero exits:
+
+```console
+Scripts/launchd/install-keepalive.sh
+```
+
+By default, the installer targets `/Applications/iMCP.app`. To install a
+different app bundle:
+
+```console
+Scripts/launchd/install-keepalive.sh /path/to/iMCP.app
+```
+
+To remove the LaunchAgent:
+
+```console
+Scripts/launchd/uninstall-keepalive.sh
+```
+
+The LaunchAgent is configured with `KeepAlive` only for unsuccessful exits, so
+choosing Quit from iMCP should not immediately relaunch the app.
+
 ## Technical Details
 
 ### App & CLI
@@ -262,6 +316,11 @@ and relayed to the app;
 responses from the app are received by the CLI and written to `stdout`.
 See [`StdioProxy`](https://github.com/mattt/iMCP/blob/8cf9d250286288b06bf5d3dda78f5905ad0d7729/CLI/main.swift#L47)
 for implementation details.
+
+`imcp-server` treats client `stdin` closure as a normal shutdown, but treats
+local network disconnects as transient. If the app-side TCP connection is reset
+or cancelled while the MCP host is still alive, the CLI rediscovers iMCP over
+Bonjour and reconnects instead of exiting immediately.
 
 For this project, we created what became
 [the official Swift SDK][swift-sdk]
@@ -341,6 +400,22 @@ you can use the [inspector tool](https://github.com/modelcontextprotocol/inspect
 
 Inspector lets you see all requests and responses between the client and the iMCP server,
 which is helpful for understanding how the protocol works.
+
+### LaunchAgent logs
+
+If you installed the keepalive LaunchAgent and iMCP is not starting as expected,
+check the launchd logs:
+
+```console
+tail -n 100 /tmp/imcp-launchd.out.log
+tail -n 100 /tmp/imcp-launchd.err.log
+```
+
+You can also restart the LaunchAgent manually:
+
+```console
+launchctl kickstart -k "gui/$UID/com.rodaddy.iMCP.keepalive"
+```
 
 ### Using Companion
 
