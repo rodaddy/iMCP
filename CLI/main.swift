@@ -629,10 +629,18 @@ actor MCPService: Service {
     }
 }
 
-// Update the ServiceLifecycle initialization
+// ServiceGroup configuration: allow MCPService to exit cleanly when
+// the MCP host closes stdin (.stdinClosed -> return) without crashing
+// the entire process. Failures still cancel the group.
 let lifecycle = ServiceGroup(
     configuration: .init(
-        services: [MCPService()],
+        services: [
+            .init(
+                service: MCPService(),
+                successTerminationBehavior: .ignore,
+                failureTerminationBehavior: .cancelGroup
+            )
+        ],
         logger: log
     )
 )
